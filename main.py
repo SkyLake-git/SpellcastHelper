@@ -1,3 +1,5 @@
+import os.path
+
 import tqdm
 from typing import Union, Dict, Any
 import navigator
@@ -381,6 +383,12 @@ def find_selection(spellcast_m: SpellCastMap, word_map: list) -> list[FindWordWi
 if __name__ == '__main__':
 	main_logger = logger.Logger("Main")
 	char_factory = SpellCastCharFactory()
+
+	if not os.path.exists("./words"):
+		os.makedirs("./words", exist_ok=True)
+		main_logger.info(crayons.yellow("words folder not found. Downloading all word dictionaries...", bold=True))
+		time.sleep(3)
+		word_provider.download_all()
 
 	threaded = False
 	future_executor = futures.ProcessPoolExecutor()

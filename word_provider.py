@@ -70,7 +70,12 @@ providers = {
 	)
 }
 
-def download(provider_name: str, stream_chunk_size: int = 2 * 1024):
+def download_all(stream_chunk_size: int = 12 * 1024):
+	for provider_name in providers.keys():
+		LOGGER.info(f"Downloading dictionary: \"{provider_name}\"")
+		download(provider_name, stream_chunk_size=stream_chunk_size)
+
+def download(provider_name: str, stream_chunk_size: int = 12 * 1024):
 	if not provider_name in providers:
 		raise Exception(f"provider name \"{provider_name}\" not found")
 
