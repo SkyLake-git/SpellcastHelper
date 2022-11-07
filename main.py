@@ -4,6 +4,10 @@ import navigator
 import window
 import time
 from PIL import Image
+import logger
+import sys
+import crayons
+import word_provider
 
 LETTERS = ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y', 'z']
 
@@ -334,10 +338,8 @@ class FindWordWizard:
 				if self.selection.length > 1:
 					self.selection.previous()
 
-def readable_image(img: Image):
-	return img.convert('1', dither=Image.NONE)
-
 if __name__ == '__main__':
+	main_logger = logger.Logger("Main")
 	char_factory = SpellCastCharFactory()
 
 	auto_navigate = False
@@ -345,37 +347,70 @@ if __name__ == '__main__':
 	words = []
 	spellcast = SpellCastMap(5)
 
+	default_provider = word_provider.get_default_provider()
+
+	if not word_provider.is_downloaded(default_provider):
+		main_logger.info(f"Word provider \"{default_provider}\" not downloaded. Downloading...")
+		word_provider.download(default_provider)
+
+	main_logger.info(f"Getting word list. provider: \"{default_provider}\"")
+	words_raw = word_provider.get_providing(default_provider, False)
+
 	size_wizard = window.WindowSizeWizard()
 
 	if auto_navigate:
+		main_logger.info("Run window size words for navigating.")
 		size_wizard.run()
 
-	nav = navigator.Navigator(size_wizard)
+		nav = navigator.Navigator(size_wizard)
+
+
+	main_logger.info("Please input spellcast map")
+	main_logger.info("Format: ")
+	print(
+"""----->
+----->
+----->
+----->
+----->""")
 
 	for y in range(5):
 		for x in range(5):
-			data = input(" ")
+			while True:
+				data = input(f"({x}, {y}): ")
+				if len(data) != 1:
+					sys.stdout.write("\rInvalid char. ")
+				else:
+					break
 			spellcast.set(char_factory.get(Vector(x, y), SingleChar(data)))
-		print("\n")
 
 	words = list(set(words))
 
-	with open("./words.txt", "r", encoding="utf-8") as f:
-		lines = f.read()
-		for word in lines.split("\n"):
-			if len(word) <= 1:
-				continue
-			words.append(word)
+	main_logger.info("Loading words...")
+	for word in tqdm.tqdm(words_raw.split("\n"), colour="cyan"):
+		if len(word) <= 1:
+			continue
+		words.append(word)
+
+	print() # for fix tqdm bug
+
+	main_logger.info("Searching start in 5 seconds...")
+	time.sleep(5)
 
 	result = []
-	for word in tqdm.tqdm(words, position=1):
-
+	start = time.time()
+	for word in tqdm.tqdm(words, position=0, ncols=70, mininterval=0.05):
 		for v, c in spellcast.vector_map().items():
 			if c.c.char == word[0]:
 				wizard = FindWordWizard(c, word, spellcast)
 				wizard.run()
 				if wizard.success:
+					text = wizard.selection.get_text()
+					sys.stdout.write("\r")
+					main_logger.info(crayons.green(f"Word found! {text}                         "))
 					result.append(wizard.selection)
+
+	print()
 
 	for result_word in sorted(result, key=lambda x: x.get_total_value(), reverse=True):
 		print(result_word.get_text() + " " + result_word.get_text_vectors())
