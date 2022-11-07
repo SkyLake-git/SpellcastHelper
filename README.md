@@ -1,7 +1,7 @@
 # SpellcastHelper
 
 ## How to use
-`python3 main.py`
+`python3 main.py` or `main.exe`
 
 ### Map Format
 Double Letter:  
