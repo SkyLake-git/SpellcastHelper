@@ -8,6 +8,7 @@ import logger
 import sys
 import crayons
 import word_provider
+from concurrent import futures
 
 LETTERS = ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y', 'z']
 
@@ -196,6 +197,8 @@ class Selection:
 			for offset, char in sorted_v:
 				self.vectors[offset] = char
 
+			self.dirty = False
+
 			return self.vectors
 		else:
 			return self.vectors
@@ -363,9 +366,24 @@ class FindWordWizard:
 				if self.selection.length > 1:
 					self.selection.previous()
 
+def find_selection(spellcast_m: SpellCastMap, word_map: list) -> list[FindWordWizard]:
+	results = []
+	for word_m in word_map:
+		for v, c in spellcast_m.vector_map().items():
+			if c.c.char == word_m[0]:
+				wizard = FindWordWizard(c, word_m, spellcast_m)
+				wizard.run()
+
+				results.append(wizard)
+
+	return results
+
 if __name__ == '__main__':
 	main_logger = logger.Logger("Main")
 	char_factory = SpellCastCharFactory()
+
+	threaded = False
+	future_executor = futures.ProcessPoolExecutor()
 
 	auto_navigate = False
 
@@ -405,7 +423,6 @@ if __name__ == '__main__':
 
 		nav = navigator.Navigator(size_wizard)
 
-	print(size_wizard.positions[0], size_wizard.positions[1], size_wizard.positions[2])
 
 
 	main_logger.info("Please input spellcast map")
@@ -460,20 +477,51 @@ if __name__ == '__main__':
 	main_logger.info("Searching start in 1 seconds...")
 	time.sleep(1)
 
+	futures = []
 	result = []
 	start = time.time()
-	for word in tqdm.tqdm(words, position=0, ncols=70, mininterval=0.03):
-		for v, c in spellcast.vector_map().items():
-			if c.c.char == word[0]:
-				wizard = FindWordWizard(c, word, spellcast)
-				wizard.run()
-				if wizard.success:
-					text = wizard.selection.get_text()
-					sys.stdout.write("\r")
-					main_logger.info(crayons.green(f"Word found! {text}                         "))
-					result.append(wizard.selection)
+	cur = 0
+	cur_words = []
 
+	if threaded:
+		for word in tqdm.tqdm(words, position=0, ncols=70, mininterval=0.03):
+			cur += 1
+			cur_words.append(word)
+			if cur > 10000:
+				future = future_executor.submit(find_selection, spellcast, cur_words)
+				futures.append(
+					future
+				)
+				cur = 0
+				cur_words = []
+	else:
+		for word in tqdm.tqdm(words, position=0, ncols=70, mininterval=0.03):
+			wizards = find_selection(spellcast, [word])
+			for wizard in wizards:
+				if wizard.success:
+					selection = wizard.selection
+					result.append(selection)
+					sys.stdout.write("\r")
+					text = selection.get_text()
+					main_logger.info(crayons.green(f"Word found! {text}                         "))
+
+	if threaded:
+		for future in tqdm.tqdm(futures, position=0, ncols=70, mininterval=0.03):
+			wizards = future.result()
+			for wizard in wizards:
+				if wizard.success:
+					selection = wizard.selection
+					result.append(selection)
+					sys.stdout.write("\r")
+					text = selection.get_text()
+					main_logger.info(crayons.green(f"Word found! {text}                         "))
+
+	end = time.time()
+	elapsed = end - start
+	main_logger.info(f"Takes {round(elapsed, 3)}s")
 	print("\n")
+
+	main_logger.info(f"Found {len(result)} words.")
 
 	for result_word in sorted(result, key=lambda x: x.get_total_value(), reverse=True):
 		print(result_word.get_text() + " " + result_word.get_text_vectors())
