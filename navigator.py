@@ -31,7 +31,7 @@ class Navigator:
 
 	def navigate(self, selection: main.Selection, nv_sleep: float = 0.0):
 		down = False
-		for length, c in selection.get_raw().items():
+		for length, c in selection.get_dirty().items():
 			window_v = self.get_pos(c.v.x, c.v.y)
 
 			pyautogui.moveTo(window_v.x, window_v.y)

@@ -37,6 +37,9 @@ class WindowSizeWizard:
 		while self.do_step():
 			time.sleep(1)
 
+		self.finalize()
+
+	def finalize(self):
 		self.size = (
 			self.positions[2].x - self.positions[0].x,
 			self.positions[0].y - self.positions[1].y

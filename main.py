@@ -70,12 +70,14 @@ class SpellCastChar:
 	c: SingleChar
 	value: int
 	multiplier: float
+	mark_double: bool
 
-	def __init__(self, v: Vector, c: SingleChar, value: int, multiplier: float = 1.0):
+	def __init__(self, v: Vector, c: SingleChar, value: int, multiplier: float = 1.0, mark_double: bool = False):
 		self.v = v
 		self.c = c
 		self.value = value
 		self.multiplier = multiplier
+		self.mark_double = mark_double
 		if not (c.char in LETTERS):
 			raise Exception(f"char \"{c.char}\" not used in spellcast")
 
@@ -143,17 +145,24 @@ class Selection:
 
 	vectors: dict[int, SpellCastChar]
 
+	length: int
+
+	dirty: bool
+
 	def __init__(self):
 		self.vectors = {}
 		self.length = 0
+		self.dirty = False
 
 	def reset(self):
 		self.length = 0
 		self.vectors = {}
+		self.dirty = True
 
 	def next(self, char: SpellCastChar):
 		self.length += 1
 		self.vectors[self.length] = char
+		self.dirty = True
 
 	def has(self, c: SingleChar):
 		for char in self.vectors.values():
@@ -173,28 +182,44 @@ class Selection:
 
 		self.vectors.pop(self.length)
 		self.length -= 1
+		self.dirty = True
 
 	def get_current(self) -> SpellCastChar:
 		return self.vectors[self.length]
 
 	def get(self):
-		sorted_v = sorted(self.vectors.items())
+		if self.dirty:
+			sorted_v = sorted(self.vectors.items())
 
-		result = {}
+			self.vectors = {}
 
-		for offset, char in sorted_v:
-			result[offset] = char
+			for offset, char in sorted_v:
+				self.vectors[offset] = char
 
-		return result
+			return self.vectors
+		else:
+			return self.vectors
 
-	def get_raw(self) -> dict[int, SpellCastChar]:
+	def get_dirty(self) -> dict[int, SpellCastChar]:
 		return self.vectors
 
 	def get_text(self):
 		return "".join(map(lambda c: c.c.char, self.get().values()))
 
 	def get_total_value(self):
-		return sum(list(map(lambda c: c.get_value(), self.get().values())))
+		value = sum(list(map(lambda c: c.get_value(), self.get().values())))
+
+		if self.has_double_points():
+			value *= 2
+
+		return value
+
+	def has_double_points(self):
+		for c in self.get().values():
+			if c.mark_double:
+				return True
+		return False
+
 
 	def get_text_vectors(self):
 		return "".join(map(lambda c: f"({c.v.x}, {c.v.y})", self.get().values()))
@@ -279,11 +304,11 @@ class SpellCastCharFactory:
 			"z": 8
 		}
 
-	def get(self, v: Vector, c: SingleChar):
+	def get(self, v: Vector, c: SingleChar, multiplier: float = 1.0, mark_double: bool = False):
 		if not c.char in LETTERS:
 			raise Exception(f"char \"{c.char}\" not used in spellcast")
 
-		return SpellCastChar(v, c, self.values[c.char])
+		return SpellCastChar(v, c, self.values[c.char], multiplier, mark_double)
 
 class FindWordWizard:
 
@@ -344,6 +369,9 @@ if __name__ == '__main__':
 
 	auto_navigate = False
 
+	if len(sys.argv) > 1:
+		auto_navigate = sys.argv[1] == "true"
+
 	words = []
 	spellcast = SpellCastMap(5)
 
@@ -359,10 +387,25 @@ if __name__ == '__main__':
 	size_wizard = window.WindowSizeWizard()
 
 	if auto_navigate:
-		main_logger.info("Run window size words for navigating.")
-		size_wizard.run()
+		with open("./default_spellcast_window.txt", "r", encoding="utf-8") as f:
+			positions = f.read().split("\n")
+			if len(positions) == 6:
+				size_wizard.positions = {
+					0: window.AbsolutePosition(float(positions[0]), float(positions[1])),
+					1: window.AbsolutePosition(float(positions[2]), float(positions[3])),
+					2: window.AbsolutePosition(float(positions[4]), float(positions[5]))
+				}
+				size_wizard.finalize()
+
+				main_logger.info("Loaded window size from default.")
+
+		if len(size_wizard.positions) != 3:
+			main_logger.info("Run window size words for navigating.")
+			size_wizard.run()
 
 		nav = navigator.Navigator(size_wizard)
+
+	print(size_wizard.positions[0], size_wizard.positions[1], size_wizard.positions[2])
 
 
 	main_logger.info("Please input spellcast map")
@@ -378,11 +421,31 @@ if __name__ == '__main__':
 		for x in range(5):
 			while True:
 				data = input(f"({x}, {y}): ")
-				if len(data) != 1:
+				sp_data = data.split()
+
+				if len(sp_data) <= 0:
+					sys.stdout.write("\rInvalid data. ")
+					continue
+
+				main_char = sp_data[0]
+
+				if len(main_char) != 1:
 					sys.stdout.write("\rInvalid char. ")
-				else:
-					break
-			spellcast.set(char_factory.get(Vector(x, y), SingleChar(data)))
+					continue
+
+				multiplier = 1.0
+				mark_double = False
+				if len(sp_data) > 1:
+					multiplier = float(sp_data[1])
+
+				if len(sp_data) > 2:
+					mark_double = bool(sp_data[2] == "true")
+
+				break
+
+
+
+			spellcast.set(char_factory.get(Vector(x, y), SingleChar(main_char), multiplier, mark_double))
 
 	words = list(set(words))
 
@@ -394,12 +457,12 @@ if __name__ == '__main__':
 
 	print() # for fix tqdm bug
 
-	main_logger.info("Searching start in 5 seconds...")
-	time.sleep(5)
+	main_logger.info("Searching start in 1 seconds...")
+	time.sleep(1)
 
 	result = []
 	start = time.time()
-	for word in tqdm.tqdm(words, position=0, ncols=70, mininterval=0.05):
+	for word in tqdm.tqdm(words, position=0, ncols=70, mininterval=0.03):
 		for v, c in spellcast.vector_map().items():
 			if c.c.char == word[0]:
 				wizard = FindWordWizard(c, word, spellcast)
@@ -410,11 +473,11 @@ if __name__ == '__main__':
 					main_logger.info(crayons.green(f"Word found! {text}                         "))
 					result.append(wizard.selection)
 
-	print()
+	print("\n")
 
 	for result_word in sorted(result, key=lambda x: x.get_total_value(), reverse=True):
 		print(result_word.get_text() + " " + result_word.get_text_vectors())
 
 		if auto_navigate:
 			nav.navigate(result_word)
-			time.sleep(5)
+			time.sleep(3)
