@@ -1,0 +1,5 @@
+tqdm
+pynput
+pyautogui
+GitPython
+crayons
