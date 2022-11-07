@@ -4,14 +4,14 @@
 `python3 main.py`
 
 ### Map Format
-Double Letter:
-<char> 2
+Double Letter:  
+\<char\> 2
 
-Triple Letter:
-<char> 3
+Triple Letter:  
+\<char\> 3
 
-Double Points:
-<char> 1 true
+Double Points:  
+\<char\> 1 true
 
 
 ### Auto Navigate
