@@ -337,15 +337,18 @@ class FindWordWizard:
 def readable_image(img: Image):
 	return img.convert('1', dither=Image.NONE)
 
-char_factory = SpellCastCharFactory()
-
 if __name__ == '__main__':
+	char_factory = SpellCastCharFactory()
+
+	auto_navigate = False
 
 	words = []
 	spellcast = SpellCastMap(5)
 
 	size_wizard = window.WindowSizeWizard()
-	size_wizard.run()
+
+	if auto_navigate:
+		size_wizard.run()
 
 	nav = navigator.Navigator(size_wizard)
 
@@ -377,5 +380,6 @@ if __name__ == '__main__':
 	for result_word in sorted(result, key=lambda x: x.get_total_value(), reverse=True):
 		print(result_word.get_text() + " " + result_word.get_text_vectors())
 
-		nav.navigate(result_word)
-		time.sleep(5)
+		if auto_navigate:
+			nav.navigate(result_word)
+			time.sleep(5)
