@@ -1,4 +1,3 @@
-
 import os
 import sys
 import urllib.error
@@ -70,10 +69,12 @@ providers = {
 	)
 }
 
+
 def download_all(stream_chunk_size: int = 12 * 1024):
 	for provider_name in providers.keys():
 		LOGGER.info(f"Downloading dictionary: \"{provider_name}\"")
 		download(provider_name, stream_chunk_size=stream_chunk_size)
+
 
 def download(provider_name: str, stream_chunk_size: int = 12 * 1024):
 	if not provider_name in providers:
@@ -125,8 +126,7 @@ def download(provider_name: str, stream_chunk_size: int = 12 * 1024):
 			last_display -= diff
 			last_second -= int(diff)
 
-
-			with open(seq_output, mode = "wb") as f:
+			with open(seq_output, mode="wb") as f:
 				while True:
 					chunk_data = url_data.read(stream_chunk_size)
 					if not chunk_data:
@@ -142,13 +142,15 @@ def download(provider_name: str, stream_chunk_size: int = 12 * 1024):
 					if second != last_second:
 						kbps = bytes / 1024
 						bytes = 0
+						last_second = second
 
 					if cur_time - last_display >= 0.1:
 						current_uv += 1
 						if len(ascii_art_uv) <= current_uv:
 							current_uv = 0
 						uv = ascii_art_uv[current_uv]
-						sys.stdout.write(f"\r>> {uv} | {round(total_bytes / 1024, 2)}kb ({round(kbps, 1)} kb/s)        ")
+						sys.stdout.write(
+							f"\r>> {uv} | {round(total_bytes / 1024, 2)}kb ({round(kbps, 1)} kb/s)        ")
 
 						last_display = cur_time
 				files.append(seq_output)
@@ -179,12 +181,15 @@ def download(provider_name: str, stream_chunk_size: int = 12 * 1024):
 	elif download_type == "unavailable":
 		print()
 
+
 def get_file(provider_name: str):
 	return "./words/" + provider_name + ".txt"
+
 
 def is_downloaded(provider_name: str) -> bool:
 	file = get_file(provider_name)
 	return os.path.exists(file) and os.path.isfile(file)
+
 
 def get_providing(provider_name: str, auto_download: bool = True):
 	file = get_file(provider_name)

@@ -1,5 +1,7 @@
 import os.path
+import typing
 
+import pymorton
 import tqdm
 from typing import Union, Dict, Any
 import navigator
@@ -11,226 +13,10 @@ import sys
 import crayons
 import word_provider
 from concurrent import futures
+from spellcast import *
 
-LETTERS = ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y', 'z']
-
-class Vector:
-
-	x: int
-	y: int
-
-	def __init__(self, x: int, y: int):
-		self.x = x
-		self.y = y
-
-	def add(self, x: int, y: int):
-		return Vector(self.x + x, self.y + y)
-
-	def add_vector(self, v):
-		return Vector(self.x + v.x, self.y + v.y)
-
-	def sides(self) -> list:
-		result = [
-			self.add(1, 0),
-			self.add(-1, 0),
-			self.add(0, 1),
-			self.add(0, -1)
-		]
-
-		return result
-
-	def neighbour(self) -> list:
-		result = self.sides()
-
-		neighbours = [
-			self.add(1, 1),
-			self.add(-1, -1),
-			self.add(1, -1),
-			self.add(-1, 1),
-		]
-
-		for side in neighbours:
-			result.append(side)
-
-		return result
-
-class SingleChar:
-
-	char: str
-
-	def __init__(self, char: str):
-		if len(char) != 1:
-			raise Exception("char must be length 1")
-
-		self.char = char
-
-	def __str__(self):
-		return self.char
-
-class SpellCastChar:
-
-	v: Vector
-	c: SingleChar
-	value: int
-	multiplier: float
-	mark_double: bool
-
-	def __init__(self, v: Vector, c: SingleChar, value: int, multiplier: float = 1.0, mark_double: bool = False):
-		self.v = v
-		self.c = c
-		self.value = value
-		self.multiplier = multiplier
-		self.mark_double = mark_double
-		if not (c.char in LETTERS):
-			raise Exception(f"char \"{c.char}\" not used in spellcast")
-
-	def get_value(self):
-		return self.value * self.multiplier
-
-class SpellCastMap:
-
-	map: dict[int, dict[int, SpellCastChar]]
-	size: int
-
-	def __init__(self, size: int):
-		self.map = {}
-		self.size = size
-
-
-	def vector_map(self) -> dict[Vector, SpellCastChar]:
-		result = {}
-		for x, content in self.map.items():
-			for y, char in content.items():
-				result[Vector(x, y)] = char
-
-		return result
-
-	def set(self, char: SpellCastChar) -> None:
-		if not char.v.x in self.map.keys():
-			self.map[char.v.x] = {}
-		self.map[char.v.x][char.v.y] = char
-
-	def get(self, v: Vector) -> Union[SpellCastChar, None]:
-		if v.x in self.map.keys():
-			if v.y in self.map[v.x].keys():
-				return self.map[v.x][v.y]
-
-		return None
-
-	def get_at(self, x: int, y: int) -> Union[SpellCastChar, None]:
-		return self.get(Vector(x, y))
-
-	def row(self, row_x: int) -> list[Vector]:
-		result = []
-
-		for v in self.vector_map().keys():
-			if v.x == row_x:
-				result.append(v)
-
-		if len(result) > self.size:
-			raise Exception("result length must be same or lower as size")
-
-		return result
-
-	def column(self, column_y: int) -> list[Vector]:
-		result = []
-
-		for v in self.vector_map().keys():
-			if v.y == column_y:
-				result.append(v)
-
-		if len(result) > self.size:
-			raise Exception("result length must be same or lower as size")
-
-		return result
-
-class Selection:
-
-	vectors: dict[int, SpellCastChar]
-
-	length: int
-
-	dirty: bool
-
-	def __init__(self):
-		self.vectors = {}
-		self.length = 0
-		self.dirty = False
-
-	def reset(self):
-		self.length = 0
-		self.vectors = {}
-		self.dirty = True
-
-	def next(self, char: SpellCastChar):
-		self.length += 1
-		self.vectors[self.length] = char
-		self.dirty = True
-
-	def has(self, c: SingleChar):
-		for char in self.vectors.values():
-			if char.c.char == c.char:
-				return True
-		return False
-
-	def has_exact(self, tchar: SpellCastChar):
-		for char in self.vectors.values():
-			if char.c.char == tchar.c.char and char.v.x == tchar.v.x and char.v.y == tchar.v.y:
-				return True
-		return False
-
-	def previous(self):
-		if self.length < 1:
-			raise Exception("length < 1")
-
-		self.vectors.pop(self.length)
-		self.length -= 1
-		self.dirty = True
-
-	def get_current(self) -> SpellCastChar:
-		return self.vectors[self.length]
-
-	def get(self):
-		if self.dirty:
-			sorted_v = sorted(self.vectors.items())
-
-			self.vectors = {}
-
-			for offset, char in sorted_v:
-				self.vectors[offset] = char
-
-			self.dirty = False
-
-			return self.vectors
-		else:
-			return self.vectors
-
-	def get_dirty(self) -> dict[int, SpellCastChar]:
-		return self.vectors
-
-	def get_text(self):
-		return "".join(map(lambda c: c.c.char, self.get().values()))
-
-	def get_total_value(self):
-		value = sum(list(map(lambda c: c.get_value(), self.get().values())))
-
-		if self.has_double_points():
-			value *= 2
-
-		return value
-
-	def has_double_points(self):
-		for c in self.get().values():
-			if c.mark_double:
-				return True
-		return False
-
-
-	def get_text_vectors(self):
-		return "".join(map(lambda c: f"({c.v.x}, {c.v.y})", self.get().values()))
 
 class CharStream:
-	
 	text: str
 
 	def __init__(self, text: str):
@@ -240,10 +26,13 @@ class CharStream:
 	def is_eof(self):
 		return (self.offset + 1) == len(self.text)
 
+	def is_reached_eof(self):
+		return self.offset >= len(self.text)
+
 	def is_start(self):
 		return self.offset == 0
 
-	def next(self) -> SingleChar:
+	def next(self) -> str:
 		text = self.text[self.offset]
 		self.offset += 1
 
@@ -265,18 +54,7 @@ class CharStream:
 		return self.current()
 
 
-
-def get_chars(vectors: list, spellcast_map_v: SpellCastMap) -> dict[Vector, SpellCastChar]:
-	chars = {}
-	for v in vectors:
-		char = spellcast_map_v.get(v)
-		if char is not None:
-			chars[v] = char
-
-	return chars
-
 class SpellCastCharFactory:
-
 	values: dict[str, int]
 
 	def __init__(self):
@@ -315,8 +93,8 @@ class SpellCastCharFactory:
 
 		return SpellCastChar(v, c, self.values[c.char], multiplier, mark_double)
 
-class FindWordWizard:
 
+class FindWordWizard:
 	selection: Selection
 	eliminated: list
 	start: SpellCastChar
@@ -324,8 +102,7 @@ class FindWordWizard:
 	spellcast: SpellCastMap
 	success: bool
 
-
-	def __init__(self, start: SpellCastChar, target_word: str, spellcast_m: SpellCastMap):
+	def __init__(self, start: SpellCastChar, target_word: str, spellcast_m: SpellCastMap, swap_available: int):
 		self.selection = Selection()
 		self.selection.next(start)
 		self.start = start
@@ -334,51 +111,131 @@ class FindWordWizard:
 		self.word.next()
 		self.spellcast = spellcast_m
 		self.success = False
+		self.swap_available = swap_available
+		self.last_tried_swap = False
+
+	def __old_is_eliminated(self, v: Vector):
+		return pymorton.interleave2(v.x, v.y) in self.eliminated
+
+	def __old_eliminate(self, v: Vector):
+		self.eliminated.append(pymorton.interleave2(v.x, v.y))
+
+	def is_eliminated(self, v: Vector):
+		return self.selection.is_eliminated(v)
+
+	def eliminate(self, v: Vector):
+		self.selection.eliminate(self.selection.length, v)
+
+	def find_neighbours(self, v: Vector, target_char: SingleChar) -> Union[SpellCastChar, None]:
+		neighbours = self.spellcast.get_neighbours(v)
+
+		found = False
+		for v, c in neighbours.items():
+			if target_char.char == c.c.char and (not self.is_eliminated(v)) and (
+					not self.selection.has_exact(c)):  # c.c.char www
+				found = True
+
+				break
+		if found:
+			return c
+		else:
+			return None
+
+	def check_selection(self):
+		if self.selection.get_raw_text() == self.word.text:
+			self.success = True
+		return self.success
 
 	def run(self):
 		while True:
-			neighbours = get_chars(self.selection.get_current().v.neighbour(), self.spellcast)
-			current_char = self.word.current().char
+			current_char = self.word.current()
 
-			found = False
-			for v, c in neighbours.items():
-				if current_char == c.c.char and (not (c in self.eliminated)) and (not self.selection.has_exact(c)): # c.c.char www
-					found = True
+			#print(self.selection.get_text() + f", {current_char}" + " / " + self.word.text)
 
-					self.selection.next(c)
+			result = self.find_neighbours(self.selection.get_current().v, current_char)
 
-					# print("Attempting: " + self.selection.get_text() + " / " + self.word.text + f" (current: {current_char}, word_offset: {self.word.offset})")
-					if self.selection.get_text() == self.word.text:
-						self.success = True
-						break
+			found = result is not None
 
-					self.word.next()
+			# 次のchar があったなら
+			if found:
+				self.selection.next(result)
 
+				# print("Attempting: " + self.selection.get_text() + " / " + self.word.text + f" (current: {
+				# current_char}, word_offset: {self.word.offset})")
+				if self.check_selection():
 					break
 
-			if self.success:
-				break
-
+				self.word.next()
 			if not found:
+				# print("not found")
+				if self.check_selection():
+					break
+
 				if self.word.offset <= 1:
 					break
 
-				self.eliminated.append(self.selection.get_current())
+				if len(self.selection.get_swapped()) < self.swap_available and not self.last_tried_swap:
+					# まだスワップできて前回スワップ失敗していないなら
+
+					swap_result = Union[SpellCastChar, None]
+					scaffold = None
+					swap_found = False
+					# print("try swap")
+
+					for target_v, c in self.spellcast.get_neighbours(self.selection.get_current().v).items():
+						if (not self.is_eliminated(target_v)) and (not self.selection.has_exact(c)):
+							swap_result = c
+							scaffold = target_v
+							break
+					swap_found = swap_result is not None
+
+					if swap_found and scaffold is not None:
+
+						char_swap_from = self.spellcast.get(scaffold)
+
+						char = SpellCastChar(scaffold, current_char, 0, char_swap_from.multiplier,
+											 char_swap_from.mark_double)
+						char.swapped = True
+						char.swapped_from = char_swap_from
+
+						# self.spellcast.set(char)
+
+						self.selection.next(char)
+						if not self.word.is_eof():
+							self.word.next()
+
+						if self.check_selection():
+							break
+					else:
+						self.last_tried_swap = True
+					continue
+
+				# これ以上見つからなかったら現在のマスを排除されたとしてマークして、前のマスに戻る
+
+				before = self.selection.get_current()
 				self.word.previous()
 				if self.selection.length > 1:
 					self.selection.previous()
 
-def find_selection(spellcast_m: SpellCastMap, word_map: list) -> list[FindWordWizard]:
+				self.eliminate(before.v)
+
+			self.last_tried_swap = False
+# print("break")
+
+
+def find_selection(spellcast_m: SpellCastMap, word_map: list, swap_available_m: int) -> list[FindWordWizard]:
 	results = []
 	for word_m in word_map:
-		for v, c in spellcast_m.vector_map().items():
-			if c.c.char == word_m[0]:
-				wizard = FindWordWizard(c, word_m, spellcast_m)
-				wizard.run()
-
-				results.append(wizard)
+		starts = spellcast_m.find(word_m[0])
+		if starts is None:
+			continue
+		for c in starts:
+			wizard = FindWordWizard(c, word_m, spellcast_m, swap_available_m)
+			wizard.run()
+			results.append(wizard)
 
 	return results
+
 
 if __name__ == '__main__':
 	main_logger = logger.Logger("Main")
@@ -395,8 +252,13 @@ if __name__ == '__main__':
 
 	auto_navigate = False
 
+	swap_available = 1
+
 	if len(sys.argv) > 1:
 		auto_navigate = sys.argv[1] == "true"
+
+	if len(sys.argv) > 2:
+		swap_available = int(sys.argv[2])
 
 	words = []
 	spellcast = SpellCastMap(5)
@@ -426,17 +288,15 @@ if __name__ == '__main__':
 				main_logger.info("Loaded window size from default.")
 
 		if len(size_wizard.positions) != 3:
-			main_logger.info("Run window size words for navigating.")
+			main_logger.info("Run window size wizard for navigating.")
 			size_wizard.run()
 
 		nav = navigator.Navigator(size_wizard)
 
-
-
 	main_logger.info("Please input spellcast map")
 	main_logger.info("Format: ")
 	print(
-"""----->
+		"""----->
 ----->
 ----->
 ----->
@@ -468,19 +328,22 @@ if __name__ == '__main__':
 
 				break
 
-
-
 			spellcast.set(char_factory.get(Vector(x, y), SingleChar(main_char), multiplier, mark_double))
 
+	spellcast.generate_map_by_char()
 	words = list(set(words))
 
 	main_logger.info("Loading words...")
 	for word in tqdm.tqdm(words_raw.split("\n"), colour="cyan"):
-		if len(word) <= 1:
+		if len(word) <= 3:
+			continue
+		if len(word) > pow(spellcast.size, 2):
+			continue
+		if (not word.isascii()) or (not word.isalpha()):
 			continue
 		words.append(word)
 
-	print() # for fix tqdm bug
+	print()  # for fix tqdm bug
 
 	main_logger.info("Searching start in 1 seconds...")
 	time.sleep(1)
@@ -495,8 +358,8 @@ if __name__ == '__main__':
 		for word in tqdm.tqdm(words, position=0, ncols=70, mininterval=0.03):
 			cur += 1
 			cur_words.append(word)
-			if cur > 10000:
-				future = future_executor.submit(find_selection, spellcast, cur_words)
+			if cur > 13000:
+				future = future_executor.submit(find_selection, spellcast, cur_words, swap_available)
 				futures.append(
 					future
 				)
@@ -504,14 +367,14 @@ if __name__ == '__main__':
 				cur_words = []
 	else:
 		for word in tqdm.tqdm(words, position=0, ncols=70, mininterval=0.03):
-			wizards = find_selection(spellcast, [word])
+			wizards = find_selection(spellcast, [word], swap_available)
 			for wizard in wizards:
 				if wizard.success:
 					selection = wizard.selection
 					result.append(selection)
-					sys.stdout.write("\r")
-					text = selection.get_text()
-					main_logger.info(crayons.green(f"Word found! {text}                         "))
+			# sys.stdout.write("\r")
+			# text = selection.get_text()
+			# main_logger.info(crayons.green(f"Word found! {text}                         "))
 
 	if threaded:
 		for future in tqdm.tqdm(futures, position=0, ncols=70, mininterval=0.03):
@@ -520,9 +383,9 @@ if __name__ == '__main__':
 				if wizard.success:
 					selection = wizard.selection
 					result.append(selection)
-					sys.stdout.write("\r")
-					text = selection.get_text()
-					main_logger.info(crayons.green(f"Word found! {text}                         "))
+			# sys.stdout.write("\r")
+			# text = selection.get_text()
+			# main_logger.info(crayons.green(f"Word found! {text}                         "))
 
 	end = time.time()
 	elapsed = end - start
@@ -531,9 +394,20 @@ if __name__ == '__main__':
 
 	main_logger.info(f"Found {len(result)} words.")
 
+	count = 0
+
 	for result_word in sorted(result, key=lambda x: x.get_total_value(), reverse=True):
-		print(result_word.get_text() + " " + result_word.get_text_vectors())
+		count += 1
+		print(
+			result_word.get_text() + f": {crayons.magenta(result_word.get_total_value(), bold=True)} " + result_word.get_text_vectors())
+
+		swapped = result_word.get_swapped()
+
+		# print("Swapped Chars: " + ", ".join(map(lambda c: f"{c.swapped_from.c.char} -> {c.c.char}", swapped)))
 
 		if auto_navigate:
 			nav.navigate(result_word)
 			time.sleep(3)
+
+		if count > 100:
+			break
