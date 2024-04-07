@@ -18,30 +18,34 @@ providers = {
 		(
 			"https://raw.githubusercontent.com/jacksonrayhamilton/wordlist-english/master/sources/english-words.70",
 			"https://raw.githubusercontent.com/jacksonrayhamilton/wordlist-english/master/sources/english-words.60",
+			"https://raw.githubusercontent.com/jacksonrayhamilton/wordlist-english/master/sources/english-words.55",
 			"https://raw.githubusercontent.com/jacksonrayhamilton/wordlist-english/master/sources/english-words.50",
 			"https://raw.githubusercontent.com/jacksonrayhamilton/wordlist-english/master/sources/english-words.40",
-			"https://raw.githubusercontent.com/jacksonrayhamilton/wordlist-english/master/sources/english-words.30",
+			"https://raw.githubusercontent.com/jacksonrayhamilton/wordlist-english/master/sources/english-words.35",
 			"https://raw.githubusercontent.com/jacksonrayhamilton/wordlist-english/master/sources/english-words.20",
 			"https://raw.githubusercontent.com/jacksonrayhamilton/wordlist-english/master/sources/english-words.10",
 			"https://raw.githubusercontent.com/jacksonrayhamilton/wordlist-english/master/sources/canadian-words.70",
 			"https://raw.githubusercontent.com/jacksonrayhamilton/wordlist-english/master/sources/canadian-words.60",
+			"https://raw.githubusercontent.com/jacksonrayhamilton/wordlist-english/master/sources/canadian-words.55",
 			"https://raw.githubusercontent.com/jacksonrayhamilton/wordlist-english/master/sources/canadian-words.50",
 			"https://raw.githubusercontent.com/jacksonrayhamilton/wordlist-english/master/sources/canadian-words.40",
-			"https://raw.githubusercontent.com/jacksonrayhamilton/wordlist-english/master/sources/canadian-words.30",
+			"https://raw.githubusercontent.com/jacksonrayhamilton/wordlist-english/master/sources/canadian-words.35",
 			"https://raw.githubusercontent.com/jacksonrayhamilton/wordlist-english/master/sources/canadian-words.20",
 			"https://raw.githubusercontent.com/jacksonrayhamilton/wordlist-english/master/sources/canadian-words.10",
 			"https://raw.githubusercontent.com/jacksonrayhamilton/wordlist-english/master/sources/british-words.70",
 			"https://raw.githubusercontent.com/jacksonrayhamilton/wordlist-english/master/sources/british-words.60",
+			"https://raw.githubusercontent.com/jacksonrayhamilton/wordlist-english/master/sources/british-words.55",
 			"https://raw.githubusercontent.com/jacksonrayhamilton/wordlist-english/master/sources/british-words.50",
 			"https://raw.githubusercontent.com/jacksonrayhamilton/wordlist-english/master/sources/british-words.40",
-			"https://raw.githubusercontent.com/jacksonrayhamilton/wordlist-english/master/sources/british-words.30",
+			"https://raw.githubusercontent.com/jacksonrayhamilton/wordlist-english/master/sources/british-words.35",
 			"https://raw.githubusercontent.com/jacksonrayhamilton/wordlist-english/master/sources/british-words.20",
 			"https://raw.githubusercontent.com/jacksonrayhamilton/wordlist-english/master/sources/british-words.10",
 			"https://raw.githubusercontent.com/jacksonrayhamilton/wordlist-english/master/sources/australian-words.70",
 			"https://raw.githubusercontent.com/jacksonrayhamilton/wordlist-english/master/sources/australian-words.60",
+			"https://raw.githubusercontent.com/jacksonrayhamilton/wordlist-english/master/sources/australian-words.55",
 			"https://raw.githubusercontent.com/jacksonrayhamilton/wordlist-english/master/sources/australian-words.50",
 			"https://raw.githubusercontent.com/jacksonrayhamilton/wordlist-english/master/sources/australian-words.40",
-			"https://raw.githubusercontent.com/jacksonrayhamilton/wordlist-english/master/sources/australian-words.30",
+			"https://raw.githubusercontent.com/jacksonrayhamilton/wordlist-english/master/sources/australian-words.35",
 			"https://raw.githubusercontent.com/jacksonrayhamilton/wordlist-english/master/sources/australian-words.20",
 			"https://raw.githubusercontent.com/jacksonrayhamilton/wordlist-english/master/sources/australian-words.10",
 			"https://raw.githubusercontent.com/jacksonrayhamilton/wordlist-english/master/sources/american-words.70",
@@ -174,6 +178,9 @@ def download(provider_name: str, stream_chunk_size: int = 12 * 1024):
 				f.write(text)
 
 
+		process(provider_name)
+
+
 
 
 
@@ -189,6 +196,24 @@ def get_file(provider_name: str):
 def is_downloaded(provider_name: str) -> bool:
 	file = get_file(provider_name)
 	return os.path.exists(file) and os.path.isfile(file)
+
+
+def process(provider_name: str):
+	words_raw = get_providing(provider_name)
+
+	words = []
+
+	for word in tqdm.tqdm(words_raw.split("\n"), colour="cyan", desc="Processing words"):
+		if len(word) <= 1:
+			continue
+		if (not word.isascii()) or (not word.isalpha()):
+			continue
+		if word in words:
+			continue
+		words.append(word)
+
+	with open(get_file(provider_name), "w", encoding="utf-8") as f:
+		f.write("\n".join(words))
 
 
 def get_providing(provider_name: str, auto_download: bool = True):

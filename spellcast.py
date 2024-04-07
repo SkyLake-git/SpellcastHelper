@@ -223,8 +223,8 @@ class Selection:
 		if self.has_double_points():
 			value *= 2
 
-		if len(self.word) >= 7:
-			value += 20
+		if len(self.word) >= 6:
+			value += 10
 
 		return value
 
