@@ -150,7 +150,7 @@ class FindWordWizard:
 		while True:
 			current_char = self.word.current()
 
-			#print(self.selection.get_text() + f", {current_char}" + " / " + self.word.text)
+			# print(self.selection.get_text() + f", {current_char}" + " / " + self.word.text)
 
 			result = self.find_neighbours(self.selection.get_current().v, current_char)
 
@@ -179,7 +179,6 @@ class FindWordWizard:
 
 					swap_result = Union[SpellCastChar, None]
 					scaffold = None
-					swap_found = False
 					# print("try swap")
 
 					for target_v, c in self.spellcast.get_neighbours(self.selection.get_current().v).items():
@@ -194,7 +193,7 @@ class FindWordWizard:
 						char_swap_from = self.spellcast.get(scaffold)
 
 						char = SpellCastChar(scaffold, current_char, 0, char_swap_from.multiplier,
-											 char_swap_from.mark_double)
+							char_swap_from.mark_double)
 						char.swapped = True
 						char.swapped_from = char_swap_from
 
@@ -220,6 +219,8 @@ class FindWordWizard:
 				self.eliminate(before.v)
 
 			self.last_tried_swap = False
+
+
 # print("break")
 
 
@@ -331,17 +332,7 @@ if __name__ == '__main__':
 			spellcast.set(char_factory.get(Vector(x, y), SingleChar(main_char), multiplier, mark_double))
 
 	spellcast.generate_map_by_char()
-	words = list(set(words))
-
-	main_logger.info("Loading words...")
-	for word in tqdm.tqdm(words_raw.split("\n"), colour="cyan"):
-		if len(word) <= 3:
-			continue
-		if len(word) > pow(spellcast.size, 2):
-			continue
-		if (not word.isascii()) or (not word.isalpha()):
-			continue
-		words.append(word)
+	words = list(set(words_raw.split("\n")))
 
 	print()  # for fix tqdm bug
 
@@ -372,9 +363,9 @@ if __name__ == '__main__':
 				if wizard.success:
 					selection = wizard.selection
 					result.append(selection)
-			# sys.stdout.write("\r")
-			# text = selection.get_text()
-			# main_logger.info(crayons.green(f"Word found! {text}                         "))
+		# sys.stdout.write("\r")
+		# text = selection.get_text()
+		# main_logger.info(crayons.green(f"Word found! {text}                         "))
 
 	if threaded:
 		for future in tqdm.tqdm(futures, position=0, ncols=70, mininterval=0.03):
@@ -383,9 +374,9 @@ if __name__ == '__main__':
 				if wizard.success:
 					selection = wizard.selection
 					result.append(selection)
-			# sys.stdout.write("\r")
-			# text = selection.get_text()
-			# main_logger.info(crayons.green(f"Word found! {text}                         "))
+		# sys.stdout.write("\r")
+		# text = selection.get_text()
+		# main_logger.info(crayons.green(f"Word found! {text}                         "))
 
 	end = time.time()
 	elapsed = end - start
